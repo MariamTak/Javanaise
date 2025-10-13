@@ -8,8 +8,11 @@ import jvn.JvnObject;
 enum STATE{
     R,RC,W,WC,RWC,NL
 }
+
 public class JvnObjectImpl implements JvnObject {
-    private int id;                // identifiant unique
+    private static final long serialVersionUID = 1L;
+
+    private int id;
     private Serializable object;
     private transient JvnLocalServer localServer;
     private STATE state;
@@ -20,30 +23,37 @@ public class JvnObjectImpl implements JvnObject {
         this.object = object;
         this.localServer = localServer;
     }
+
     public JvnObjectImpl(int id, Serializable object) {
         this.id = id;
-        this.object = object;
         this.state = STATE.NL;
+        this.object = object;
     }
 
-
     @Override
-    public synchronized void jvnLockRead() throws JvnException {
-        if (this.state == STATE.W) {
+    public synchronized  void jvnLockRead() throws JvnException {
+        // Déjà en lecture
+        if (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
                 throw new JvnException(e.getMessage());
             }
         }
-        if (state == STATE.R || state == STATE.RC || state == STATE.RWC) {
+
+        // Peut réutiliser le cache en lecture
+        if (state == STATE.RC ) {
             state = STATE.R;
             return;
         }
+
+        // Avait un cache en écriture, peut lire localement
         if (state == STATE.WC) {
             state = STATE.RWC;
             return;
         }
+
+        // Sinon, demander au coordinateur
         if (state == STATE.NL) {
             object = localServer.jvnLockRead(id);
             state = STATE.R;
@@ -52,28 +62,36 @@ public class JvnObjectImpl implements JvnObject {
 
     @Override
     public synchronized void jvnLockWrite() throws JvnException {
-        // attendre si un verrou d'écriture est actif
+        // Déjà en écriture
         if (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
                 throw new JvnException(e.getMessage());
-            }}
-        if (state != STATE.WC && state != STATE.RWC) {
-            object = localServer.jvnLockWrite(id);
+            }
         }
 
+        // Peut réutiliser le cache en écriture
+        if (state == STATE.WC ) {
+            state = STATE.W;
+            return;
+        }
+
+        // Sinon, demander au coordinateur (états NL, R, RC)
+        object = localServer.jvnLockWrite(id);
         state = STATE.W;
     }
 
     @Override
-    public synchronized void jvnUnLock() throws JvnException {
+    public synchronized  void jvnUnLock() throws JvnException {
         if (state == STATE.W) {
             state = STATE.WC;
+            notifyAll();
         } else if (state == STATE.R) {
             state = STATE.RC;
+            notifyAll();
         }
-        notifyAll();
+
     }
 
     @Override
@@ -85,55 +103,65 @@ public class JvnObjectImpl implements JvnObject {
     public Serializable jvnGetSharedObject() throws JvnException {
         return object;
     }
+
     public void setObject(Serializable object) {
         this.object = object;
     }
 
     @Override
     public synchronized void jvnInvalidateReader() throws JvnException {
-        // Attendre si un verrou d'écriture est actif
-        if (state == STATE.W) {
+        // Invalider le cache de lecture
+        if(state == STATE.R) {
             try {
                 wait();
             } catch (InterruptedException e) {
-                throw new JvnException(e.getMessage());
+                throw new RuntimeException(e);
             }
         }
-        if (state == STATE.R || state == STATE.RC) {
+        if (state == STATE.RC) {
             state = STATE.NL;
+            object = null;
         }
     }
 
     @Override
     public synchronized Serializable jvnInvalidateWriter() throws JvnException {
+        Serializable result = object;
         if (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
-                throw new JvnException(e.getMessage());
+                throw new RuntimeException(e);
             }
         }
-        if (state == STATE.WC) {
+        if (state == STATE.WC || state == STATE.RWC || state == STATE.W) {
             state = STATE.NL;
-        }    return object;}
+            object = null;
+        }
+
+        return result;
+    }
 
     @Override
     public synchronized Serializable jvnInvalidateWriterForReader() throws JvnException {
-        // Attendre si un verrou d'écriture est actif
-        while (state == STATE.W) {
+        Serializable result = object;
+        if (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
-                throw new JvnException(e.getMessage());
+                throw new RuntimeException(e);
             }
         }
-
-        if (state == STATE.WC) {
+        if (state == STATE.WC || state == STATE.W) {
             state = STATE.RC;
         } else if (state == STATE.RWC) {
             state = STATE.R;
         }
 
-        return object;
-    }    }
+        return result;
+    }
 
+    public void setLocalServer(JvnLocalServer localServer) {
+        this.localServer = localServer;
+    }
+}

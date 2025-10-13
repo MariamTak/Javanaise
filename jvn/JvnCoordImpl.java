@@ -15,7 +15,7 @@ import java.util.*;
 
 
 public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
-	
+
 
 	private static final long serialVersionUID = 1L;
     private int next_id = 0;
@@ -42,7 +42,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
 
 
   /**
-  *  Allocate a NEW JVN object id (usually allocated to a 
+  *  Allocate a NEW JVN object id (usually allocated to a
   *  newly created JVN object)
   * @throws java.rmi.RemoteException,JvnException
   **/
@@ -50,11 +50,11 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
   throws java.rmi.RemoteException,jvn.JvnException {
     return next_id++;
   }
-  
+
   /**
   * Associate a symbolic name with a JVN object
   * @param jon : the JVN object name
-  * @param jo  : the JVN object 
+  * @param jo  : the JVN object
   * @param joi : the JVN object identification
   * @param js  : the remote reference of the JVNServer
   * @throws java.rmi.RemoteException,JvnException
@@ -67,11 +67,12 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
       //enregister etat de l'objet
       states.put(id,jo.jvnGetSharedObject());
       readers.putIfAbsent(id,new HashSet<>());
-      writers.put(id,js);
+      writers.put(id,null);
+      locks.putIfAbsent(js, new ArrayList<>());
   }
-  
+
   /**
-  * Get the reference of a JVN object managed by a given JVN server 
+  * Get the reference of a JVN object managed by a given JVN server
   * @param jon : the JVN object name
   * @param js : the remote reference of the JVNServer
   * @throws java.rmi.RemoteException,JvnException
@@ -82,11 +83,12 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
       if (id == null) return null;
       //recupere etat
       Serializable obj = states.get(id);
-      return new JvnObjectImpl(id,obj);
+      JvnObject remoteObj = new JvnObjectImpl(id, obj);
+      return remoteObj;
   }
-  
+
   /**
-  * Get a Read lock on a JVN object managed by a given JVN server 
+  * Get a Read lock on a JVN object managed by a given JVN server
   * @param joi : the JVN object identification
   * @param js  : the remote reference of the server
   * @return the current JVN object state
@@ -104,15 +106,15 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
            states.put(joi,state);
            writers.put(joi,null);
        }
-           // Ajouter le serveur appelant à la liste des lecteurs
+           // ajouter le serveur appelant à la liste des lecteurs
            readers.putIfAbsent(joi, new HashSet<>());
            readers.get(joi).add(js);
 
-           // Retourner l’état partagé courant
-           return states.get(joi);
+       Serializable state = states.get(joi);
+       return state;
    }
   /**
-  * Get a Write lock on a JVN object managed by a given JVN server 
+  * Get a Write lock on a JVN object managed by a given JVN server
   * @param joi : the JVN object identification
   * @param js  : the remote reference of the server
   * @return the current JVN object state
@@ -130,7 +132,9 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
        if (rds != null) {
            for (JvnRemoteServer reader : new HashSet<>(rds)) {
                if (!reader.equals(js)) {
-                   reader.jvnInvalidateReader(joi);}
+                  Serializable state = reader.jvnInvalidateReader(joi);
+                  states.put(joi,state);
+               }
            }
            rds.clear();
        }
@@ -167,6 +171,19 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
 
         // remove all locks it holds
         locks.remove(js);    }
+
+
+    public static void main(String[] args) {
+        try {
+            java.rmi.registry.LocateRegistry.createRegistry(1099);
+            JvnCoordImpl coord = new JvnCoordImpl();
+            java.rmi.Naming.rebind("JvnCoord", coord);
+            System.out.println("JVN Coordinator is running...");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 }
 
- 
+

@@ -21,11 +21,13 @@ import java.io.*;
 public interface JvnRemoteServer extends Remote {
 	    
 	/**
-	* Invalidate the Read lock of a JVN object 
-	* @param joi : the JVN object id
-	* @throws java.rmi.RemoteException,JvnException
-	**/
-  public void jvnInvalidateReader(int joi)
+	 * Invalidate the Read lock of a JVN object
+	 *
+	 * @param joi : the JVN object id
+	 * @return
+	 * @throws java.rmi.RemoteException,JvnException
+	 */
+  public Serializable jvnInvalidateReader(int joi)
 	throws java.rmi.RemoteException,jvn.JvnException;
 	    
 	/**

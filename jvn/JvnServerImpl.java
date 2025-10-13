@@ -38,7 +38,7 @@ public class JvnServerImpl
 		super();
 		obj = new HashMap<>();
 try {
-//	jvnRemoteCoord = (JvnRemoteCoord)  Naming.lookup("rmi://127.0.0.1/JvnServer");
+jvnRemoteCoord = (JvnRemoteCoord)  Naming.lookup("rmi://localhost/JvnCoord");
 } catch (Exception e) {
 		throw new RuntimeException(e);
 	}
@@ -72,7 +72,7 @@ jvnRemoteCoord.jvnTerminate(this);
 	throw new RuntimeException(e);
 }
 	}
-	
+
 	/**
 	* creation of a JVN object
 	* @param o : the JVN object state
@@ -82,7 +82,7 @@ jvnRemoteCoord.jvnTerminate(this);
 	throws jvn.JvnException {
 		try {
 			int id = jvnRemoteCoord.jvnGetObjectId();
-			JvnObjectImpl jo = new JvnObjectImpl(id, o);
+			JvnObjectImpl jo = new JvnObjectImpl(id, o, this);
 			obj.put(id, jo);
 			return jo;
 		} catch (Exception e) {
@@ -98,7 +98,11 @@ jvnRemoteCoord.jvnTerminate(this);
 	**/
 	public  void jvnRegisterObject(String jon, JvnObject jo)
 	throws jvn.JvnException {
-		// to be completed 
+	try{
+		jvnRemoteCoord.jvnRegisterObject(jon, jo, this);
+	} catch (Exception e) {
+		throw new RuntimeException(e);
+	}
 	}
 	
 	/**
@@ -107,11 +111,22 @@ jvnRemoteCoord.jvnTerminate(this);
 	* @return the JVN object 
 	* @throws JvnException
 	**/
-	public  JvnObject jvnLookupObject(String jon)
-	throws jvn.JvnException {
-    // to be completed 
-		return null;
-	}	
+
+	public JvnObject jvnLookupObject(String jon) throws JvnException {
+		try {
+			JvnObject objRef = jvnRemoteCoord.jvnLookupObject(jon, this);
+			if (objRef != null) {
+				if (objRef instanceof JvnObjectImpl) {
+					((JvnObjectImpl) objRef).setLocalServer(this);
+				}
+				obj.put(objRef.jvnGetObjectId(), objRef);
+			}
+			return objRef;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	
 	/**
 	* Get a Read lock on a JVN object 
@@ -119,36 +134,52 @@ jvnRemoteCoord.jvnTerminate(this);
 	* @return the current JVN object state
 	* @throws  JvnException
 	**/
-   public Serializable jvnLockRead(int joi)
-	 throws JvnException {
-		// to be completed 
-		return null;
+	public Serializable jvnLockRead(int joi) throws JvnException {
+		try {
+			Serializable state = jvnRemoteCoord.jvnLockRead(joi, this);
+			if (obj.get(joi) instanceof JvnObjectImpl) {
+				obj.get(joi).setObject(state);
+			}
+			return state;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-	}	
+
 	/**
 	* Get a Write lock on a JVN object 
 	* @param joi : the JVN object identification
 	* @return the current JVN object state
 	* @throws  JvnException
 	**/
-   public Serializable jvnLockWrite(int joi)
-	 throws JvnException {
-		// to be completed 
-		return null;
-	}	
 
+	public Serializable jvnLockWrite(int joi) throws JvnException {
+		try {
+			Serializable state = jvnRemoteCoord.jvnLockWrite(joi, this);
+			// Update local object with fresh state
+			if (obj.get(joi) instanceof JvnObjectImpl) {
+				obj.get(joi).setObject(state);
+			}
+			return state;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
 	
   /**
-	* Invalidate the Read lock of the JVN object identified by id 
-	* called by the JvnCoord
-	* @param joi : the JVN object id
-	* @return void
-	* @throws java.rmi.RemoteException,JvnException
-	**/
-  public void jvnInvalidateReader(int joi)
+   * Invalidate the Read lock of the JVN object identified by id
+   * called by the JvnCoord
+   *
+   * @param joi : the JVN object id
+   * @return void
+   * @throws java.rmi.RemoteException,JvnException
+   **/
+  public Serializable jvnInvalidateReader(int joi)
 	throws java.rmi.RemoteException,jvn.JvnException {
-		// to be completed 
-	};
+	  obj.get(joi).jvnInvalidateReader();
+	  return null;
+  };
 	    
 	/**
 	* Invalidate the Write lock of the JVN object identified by id 
@@ -157,9 +188,8 @@ jvnRemoteCoord.jvnTerminate(this);
 	* @throws java.rmi.RemoteException,JvnException
 	**/
   public Serializable jvnInvalidateWriter(int joi)
-	throws java.rmi.RemoteException,jvn.JvnException { 
-		// to be completed 
-		return null;
+	throws java.rmi.RemoteException,jvn.JvnException {
+	  return obj.get(joi).jvnInvalidateWriter();
 	};
 	
 	/**
@@ -169,10 +199,10 @@ jvnRemoteCoord.jvnTerminate(this);
 	* @throws java.rmi.RemoteException,JvnException
 	**/
    public Serializable jvnInvalidateWriterForReader(int joi)
-	 throws java.rmi.RemoteException,jvn.JvnException { 
-		// to be completed 
-		return null;
+	 throws java.rmi.RemoteException,jvn.JvnException {
+	   return obj.get(joi).jvnInvalidateWriterForReader();
 	 };
+
 
 }
 
