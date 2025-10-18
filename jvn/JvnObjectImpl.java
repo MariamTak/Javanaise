@@ -31,9 +31,9 @@ public class JvnObjectImpl implements JvnObject {
     }
 
     @Override
-    public synchronized  void jvnLockRead() throws JvnException {
-        // Déjà en lecture
-        if (state == STATE.W) {
+    public synchronized void jvnLockRead() throws JvnException {
+        // Attendre si quelqu'un écrit
+        while (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
@@ -41,20 +41,20 @@ public class JvnObjectImpl implements JvnObject {
             }
         }
 
-        // Peut réutiliser le cache en lecture
-        if (state == STATE.RC ) {
+        // Si cache de lecture valide, le réutiliser
+        if (state == STATE.RC) {
             state = STATE.R;
             return;
         }
 
-        // Avait un cache en écriture, peut lire localement
-        if (state == STATE.WC) {
+        // Si cache d'écriture valide, peut lire localement
+        if (state == STATE.WC || state == STATE.RWC) {
             state = STATE.RWC;
             return;
         }
 
-        // Sinon, demander au coordinateur
-        if (state == STATE.NL) {
+        // Sinon (NL ou R), demander au coordinateur
+        if (state == STATE.NL || state == STATE.R) {
             object = localServer.jvnLockRead(id);
             state = STATE.R;
         }
@@ -62,8 +62,8 @@ public class JvnObjectImpl implements JvnObject {
 
     @Override
     public synchronized void jvnLockWrite() throws JvnException {
-        // Déjà en écriture
-        if (state == STATE.W) {
+        // Attendre si quelqu'un écrit
+        while (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
@@ -71,27 +71,28 @@ public class JvnObjectImpl implements JvnObject {
             }
         }
 
-        // Peut réutiliser le cache en écriture
-        if (state == STATE.WC ) {
+        // Si cache d'écriture valide, le réutiliser
+        if (state == STATE.WC || state == STATE.RWC) {
             state = STATE.W;
             return;
         }
 
-        // Sinon, demander au coordinateur (états NL, R, RC)
+        // Sinon, demander au coordinateur
         object = localServer.jvnLockWrite(id);
         state = STATE.W;
     }
 
     @Override
-    public synchronized  void jvnUnLock() throws JvnException {
+    public synchronized void jvnUnLock() throws JvnException {
         if (state == STATE.W) {
             state = STATE.WC;
-            notifyAll();
         } else if (state == STATE.R) {
             state = STATE.RC;
-            notifyAll();
+        } else if (state == STATE.RWC) {
+            // Reste en RWC après un unlock de lecture
+            // (on garde le cache d'écriture)
         }
-
+        notifyAll();
     }
 
     @Override
@@ -110,54 +111,67 @@ public class JvnObjectImpl implements JvnObject {
 
     @Override
     public synchronized void jvnInvalidateReader() throws JvnException {
-        // Invalider le cache de lecture
-        if(state == STATE.R) {
+        // Attendre si lecture en cours
+        while (state == STATE.R) {
             try {
                 wait();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
+
+        // Invalider le cache de lecture
         if (state == STATE.RC) {
             state = STATE.NL;
-            object = null;
+        } else if (state == STATE.RWC) {
+            state = STATE.WC;
         }
+
+        notifyAll();
     }
 
     @Override
     public synchronized Serializable jvnInvalidateWriter() throws JvnException {
         Serializable result = object;
-        if (state == STATE.W) {
+
+        // Attendre si écriture en cours
+        while (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
-        if (state == STATE.WC || state == STATE.RWC || state == STATE.W) {
+
+        // Invalider complètement
+        if (state == STATE.WC || state == STATE.RWC) {
             state = STATE.NL;
-            object = null;
         }
 
+        notifyAll();
         return result;
     }
 
     @Override
     public synchronized Serializable jvnInvalidateWriterForReader() throws JvnException {
         Serializable result = object;
-        if (state == STATE.W) {
+
+        // Attendre si écriture en cours
+        while (state == STATE.W) {
             try {
                 wait();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
-        if (state == STATE.WC || state == STATE.W) {
+
+        if (state == STATE.WC) {
             state = STATE.RC;
         } else if (state == STATE.RWC) {
             state = STATE.R;
         }
 
+        notifyAll();
         return result;
     }
 

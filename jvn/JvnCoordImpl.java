@@ -5,31 +5,23 @@
  * Contact:  
  *
  * Authors: 
- */ 
-
+ */
 package jvn;
 
 import java.rmi.server.UnicastRemoteObject;
 import java.io.Serializable;
 import java.util.*;
 
-
 public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
 
-
-	private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
     private int next_id = 0;
     private Map<String,Integer> name_id;
-    private  Map<Integer, Set<JvnRemoteServer>> readers;
+    private Map<Integer, Set<JvnRemoteServer>> readers;
     private Map<Integer, JvnRemoteServer> writers;
     private Map<Integer, Serializable> states;
     private Map<JvnRemoteServer, ArrayList<Integer>> locks;
 
-
-    /**
-  * Default constructor
-  * @throws JvnException
-  **/
     public JvnCoordImpl() throws Exception {
         super();
         name_id = new HashMap<>();
@@ -37,141 +29,117 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
         writers = new HashMap<>();
         states = new HashMap<>();
         locks = new HashMap<>();
-
     }
 
+    public int jvnGetObjectId()
+            throws java.rmi.RemoteException,jvn.JvnException {
+        return next_id++;
+    }
 
-  /**
-  *  Allocate a NEW JVN object id (usually allocated to a
-  *  newly created JVN object)
-  * @throws java.rmi.RemoteException,JvnException
-  **/
-  public int jvnGetObjectId()
-  throws java.rmi.RemoteException,jvn.JvnException {
-    return next_id++;
-  }
+    public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
+            throws java.rmi.RemoteException,jvn.JvnException{
+        int id = jo.jvnGetObjectId();
+        name_id.put(jon,id);
+        states.put(id,jo.jvnGetSharedObject());
+        readers.putIfAbsent(id,new HashSet<>());
+        writers.put(id,null);
+        locks.putIfAbsent(js, new ArrayList<>());
+    }
 
-  /**
-  * Associate a symbolic name with a JVN object
-  * @param jon : the JVN object name
-  * @param jo  : the JVN object
-  * @param joi : the JVN object identification
-  * @param js  : the remote reference of the JVNServer
-  * @throws java.rmi.RemoteException,JvnException
-  **/
-  public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
-  throws java.rmi.RemoteException,jvn.JvnException{
-      int id = jo.jvnGetObjectId();
-      //enregistrer nom
-      name_id.put(jon,id);
-      //enregister etat de l'objet
-      states.put(id,jo.jvnGetSharedObject());
-      readers.putIfAbsent(id,new HashSet<>());
-      writers.put(id,null);
-      locks.putIfAbsent(js, new ArrayList<>());
-  }
+    public JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
+            throws java.rmi.RemoteException,jvn.JvnException{
+        Integer id = name_id.get(jon);
+        if (id == null) return null;
+        Serializable obj = states.get(id);
+        JvnObject remoteObj = new JvnObjectImpl(id, obj);
+        return remoteObj;
+    }
 
-  /**
-  * Get the reference of a JVN object managed by a given JVN server
-  * @param jon : the JVN object name
-  * @param js : the remote reference of the JVNServer
-  * @throws java.rmi.RemoteException,JvnException
-  **/
-  public JvnObject jvnLookupObject(String jon, JvnRemoteServer js)
-  throws java.rmi.RemoteException,jvn.JvnException{
-      Integer id = name_id.get(jon);
-      if (id == null) return null;
-      //recupere etat
-      Serializable obj = states.get(id);
-      JvnObject remoteObj = new JvnObjectImpl(id, obj);
-      return remoteObj;
-  }
+    public Serializable jvnLockRead(int joi, JvnRemoteServer js)
+            throws java.rmi.RemoteException, JvnException {
+        locks.putIfAbsent(js, new ArrayList<>());
+        if (!locks.get(js).contains(joi)) {
+            locks.get(js).add(joi);
+        }
 
-  /**
-  * Get a Read lock on a JVN object managed by a given JVN server
-  * @param joi : the JVN object identification
-  * @param js  : the remote reference of the server
-  * @return the current JVN object state
-  * @throws java.rmi.RemoteException, JvnException
-  **/
-   public Serializable jvnLockRead(int joi, JvnRemoteServer js)
-   throws java.rmi.RemoteException, JvnException {
-       locks.putIfAbsent(js, new ArrayList<>());
-       if (!locks.get(js).contains(joi)) {
-           locks.get(js).add(joi);
-       }
-       JvnRemoteServer writer = writers.get(joi);
-       if (writer != null && writer != js) {
-           Serializable state= writer.jvnInvalidateWriterForReader(joi);
-           states.put(joi,state);
-           writers.put(joi,null);
-       }
-           // ajouter le serveur appelant à la liste des lecteurs
-           readers.putIfAbsent(joi, new HashSet<>());
-           readers.get(joi).add(js);
+        JvnRemoteServer writer = writers.get(joi);
+        if (writer != null && !writer.equals(js)) {
+            // Get the latest state from the writer
+            Serializable state = writer.jvnInvalidateWriterForReader(joi);
+            if (state != null) {
+                states.put(joi, state);
+            }
+            writers.put(joi, null);
+        }
 
-       Serializable state = states.get(joi);
-       return state;
-   }
-  /**
-  * Get a Write lock on a JVN object managed by a given JVN server
-  * @param joi : the JVN object identification
-  * @param js  : the remote reference of the server
-  * @return the current JVN object state
-  * @throws java.rmi.RemoteException, JvnException
-  **/
-   public Serializable jvnLockWrite(int joi, JvnRemoteServer js)
-   throws java.rmi.RemoteException, JvnException{
-    // to be completed
-       locks.putIfAbsent(js, new ArrayList<>());
-       if (!locks.get(js).contains(joi)) {
-           locks.get(js).add(joi);
-       }
-       // invalider les lecteurs
-       Set<JvnRemoteServer> rds = readers.get(joi);
-       if (rds != null) {
-           for (JvnRemoteServer reader : new HashSet<>(rds)) {
-               if (!reader.equals(js)) {
-                  Serializable state = reader.jvnInvalidateReader(joi);
-                  states.put(joi,state);
-               }
-           }
-           rds.clear();
-       }
+        // Add the calling server to readers list
+        readers.putIfAbsent(joi, new HashSet<>());
+        readers.get(joi).add(js);
 
-       // invalider le writer actuel si différent
-       JvnRemoteServer currentWriter = writers.get(joi);
-       if (currentWriter != null && !currentWriter.equals(js)) {
-           Serializable state = currentWriter.jvnInvalidateWriter(joi);
-           states.put(joi, state);
-       }
+        return states.get(joi);
+    }
 
-       // accorder le verrou d’écriture
-       writers.put(joi, js);
+    public Serializable jvnLockWrite(int joi, JvnRemoteServer js)
+            throws java.rmi.RemoteException, JvnException{
+        locks.putIfAbsent(js, new ArrayList<>());
+        if (!locks.get(js).contains(joi)) {
+            locks.get(js).add(joi);
+        }
 
-       return states.get(joi);
-   }
-	/**
-	* A JVN server terminates
-	* @param js  : the remote reference of the server
-	* @throws java.rmi.RemoteException, JvnException
-	**/
+        // invalider les lecteurs
+        Set<JvnRemoteServer> rds = readers.get(joi);
+        if (rds != null) {
+            for (JvnRemoteServer reader : new HashSet<>(rds)) {
+                if (!reader.equals(js)) {
+                    reader.jvnInvalidateReader(joi);
+                }
+            }
+            rds.clear();
+        }
+
+        // Invalidate the current writer if different and get its state
+        JvnRemoteServer currentWriter = writers.get(joi);
+        if (currentWriter != null && !currentWriter.equals(js)) {
+            Serializable state = currentWriter.jvnInvalidateWriter(joi);
+            if (state != null) {
+                states.put(joi, state);
+            }
+        }
+
+        if (readers.get(joi) != null) {
+            readers.get(joi).remove(js);
+        }
+
+        // Grant write lock
+        writers.put(joi, js);
+
+        return states.get(joi);
+    }
+
     public void jvnTerminate(JvnRemoteServer js)
-	 throws java.rmi.RemoteException, JvnException {
-        //enlever server des readers
-	 for (Set<JvnRemoteServer> rds : readers.values()){
-	     rds.remove(js);
-     }
-     //enlever server de writers
+            throws java.rmi.RemoteException, JvnException {
+        // Remove server from readers
+        for (Set<JvnRemoteServer> rds : readers.values()){
+            rds.remove(js);
+        }
+
+        // Remove server from writers and get final state
         for (Map.Entry<Integer, JvnRemoteServer> entry : new HashMap<>(writers).entrySet()) {
             if (entry.getValue() != null && entry.getValue().equals(js)) {
+                try {
+                    Serializable finalState = js.jvnInvalidateWriter(entry.getKey());
+                    if (finalState != null) {
+                        states.put(entry.getKey(), finalState);
+                    }
+                } catch (Exception e) {
+                    // Server might already be down
+                }
                 writers.put(entry.getKey(), null);
             }
         }
 
-        // remove all locks it holds
-        locks.remove(js);    }
-
+        locks.remove(js);
+    }
 
     public static void main(String[] args) {
         try {
@@ -183,7 +151,4 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord{
             e.printStackTrace();
         }
     }
-
 }
-
-

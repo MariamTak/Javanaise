@@ -175,12 +175,16 @@ jvnRemoteCoord.jvnTerminate(this);
    * @return void
    * @throws java.rmi.RemoteException,JvnException
    **/
-  public Serializable jvnInvalidateReader(int joi)
-	throws java.rmi.RemoteException,jvn.JvnException {
-	  obj.get(joi).jvnInvalidateReader();
-	  return null;
-  };
-	    
+
+	public Serializable jvnInvalidateReader(int joi) throws JvnException {
+		JvnObject localObj = obj.get(joi);
+		if (localObj != null) {
+			Serializable currentState = localObj.jvnGetSharedObject();
+			localObj.jvnInvalidateReader();
+			return currentState;  // retourner l'état sauvegardé
+		}
+		return null;
+	}
 	/**
 	* Invalidate the Write lock of the JVN object identified by id 
 	* @param joi : the JVN object id
