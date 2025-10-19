@@ -179,9 +179,8 @@ jvnRemoteCoord.jvnTerminate(this);
 	public Serializable jvnInvalidateReader(int joi) throws JvnException {
 		JvnObject localObj = obj.get(joi);
 		if (localObj != null) {
-			Serializable currentState = localObj.jvnGetSharedObject();
 			localObj.jvnInvalidateReader();
-			return currentState;  // retourner l'état sauvegardé
+			return localObj.jvnGetSharedObject();
 		}
 		return null;
 	}

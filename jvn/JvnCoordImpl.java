@@ -48,13 +48,11 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
     public synchronized Serializable jvnLockRead(int joi, JvnRemoteServer js)
             throws java.rmi.RemoteException, JvnException {
 
-        // Initialiser la liste des locks pour ce client
         locks.putIfAbsent(js, new ArrayList<>());
         if (!locks.get(js).contains(joi)) {
             locks.get(js).add(joi);
         }
 
-        // Invalider le writer actuel si nécessaire
         JvnRemoteServer writer = writers.get(joi);
         if (writer != null && !writer.equals(js)) {
             Serializable updatedObject = writer.jvnInvalidateWriterForReader(joi);
@@ -74,45 +72,40 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
     public synchronized Serializable jvnLockWrite(int joi, JvnRemoteServer js)
             throws java.rmi.RemoteException, JvnException {
 
-        // Initialiser la liste des locks pour ce client
         locks.putIfAbsent(js, new ArrayList<>());
         if (!locks.get(js).contains(joi)) {
             locks.get(js).add(joi);
         }
 
-        // 1️⃣ Invalider tous les lecteurs
-        Set<JvnRemoteServer> rds = readers.get(joi);
-        if (rds != null) {
-            for (JvnRemoteServer reader : new HashSet<>(rds)) {
-                if (!reader.equals(js)) {
-                    Serializable updatedObject = reader.jvnInvalidateReader(joi);
-                    if (updatedObject != null) {
-                        states.put(joi, updatedObject);
-                    }
-                }
-            }
-            rds.clear();
-        }
-
-        // 2️⃣ Invalider le writer actuel si différent
         JvnRemoteServer currentWriter = writers.get(joi);
         if (currentWriter != null && !currentWriter.equals(js)) {
             Serializable updatedObject = currentWriter.jvnInvalidateWriter(joi);
             if (updatedObject != null) {
                 states.put(joi, updatedObject);
             }
-            writers.put(joi, null);
+        }
+        Set<JvnRemoteServer> rds = readers.get(joi);
+        if (rds != null) {
+            for (JvnRemoteServer reader : new HashSet<>(rds)) {
+                if (!reader.equals(js)) {
+                    try {
+                        Serializable updatedObject = reader.jvnInvalidateReader(joi);
+                        if (updatedObject != null) {
+                            states.put(joi, updatedObject);
+                        }
+                    } catch (Exception e) {
+                        // Reader peut être déconnecté
+                    }
+                }
+            }
+            rds.clear();
         }
 
-        // 3️⃣ Supprimer le client actuel de la liste des lecteurs (s’il était là)
         if (readers.get(joi) != null) {
             readers.get(joi).remove(js);
         }
-
-        // 4️⃣ Accorder le verrou d’écriture au client actuel
         writers.put(joi, js);
 
-        // 5️⃣ Retourner la version la plus récente de l’objet
         return states.get(joi);
     }
 

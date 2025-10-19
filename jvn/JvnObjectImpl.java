@@ -41,25 +41,17 @@ public class JvnObjectImpl implements JvnObject {
             }
         }
 
-        // Si cache de lecture valide, le réutiliser
-        if (state == STATE.RC) {
-            state = STATE.R;
-            return;
-        }
-
         // Si cache d'écriture valide, peut lire localement
         if (state == STATE.WC || state == STATE.RWC) {
             state = STATE.RWC;
             return;
         }
 
-        // Sinon (NL ou R), demander au coordinateur
-        if (state == STATE.NL || state == STATE.R) {
-            object = localServer.jvnLockRead(id);
-            state = STATE.R;
-        }
+        // ✅ TOUJOURS contacter le coordinateur pour RC, R et NL
+        // Pour s'assurer d'avoir la version la plus récente
+        object = localServer.jvnLockRead(id);
+        state = STATE.R;
     }
-
     @Override
     public synchronized void jvnLockWrite() throws JvnException {
         // Attendre si quelqu'un écrit
