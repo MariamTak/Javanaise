@@ -125,7 +125,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
                         states.put(entry.getKey(), finalState);
                     }
                 } catch (Exception e) {
-                    // Server might already be down
+
                 }
                 writers.put(entry.getKey(), null);
             }
@@ -134,14 +134,4 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
         locks.remove(js);
     }
 
-    public static void main(String[] args) {
-        try {
-            java.rmi.registry.LocateRegistry.createRegistry(1099);
-            JvnCoordImpl coord = new JvnCoordImpl();
-            java.rmi.Naming.rebind("JvnCoord", coord);
-            System.out.println("JVN Coordinator is running...");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 }

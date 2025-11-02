@@ -18,12 +18,6 @@ public class JvnProxy implements InvocationHandler {
         this.realObject = realObject;
     }
 
-    /**
-     * Crée un proxy dynamique pour un objet JVN
-     * @param jvnObject L'objet JVN qui contient l'état partagé
-     * @param objectInterface L'interface que l'objet doit implémenter
-     * @return Le proxy qui intercepte les appels
-     */
     @SuppressWarnings("unchecked")
     public static <T> T newInstance(JvnObject jvnObject, Class<T> objectInterface)
             throws JvnException {
@@ -39,9 +33,8 @@ public class JvnProxy implements InvocationHandler {
         );
     }
 
-    /**
-     * Méthode appelée à chaque invocation de méthode sur le proxy
-     */
+
+
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         // Vérifier si la méthode a l'annotation @JvnRead
@@ -54,45 +47,43 @@ public class JvnProxy implements InvocationHandler {
             return invokeWithWriteLock(method, args);
         }
 
-        // Si pas d'annotation, appel direct (pas de verrou)
+        //  pas d'annotation, appel direct (pas de verrou)
         return method.invoke(realObject, args);
     }
 
-    /**
-     * Invoque une méthode avec un verrou en lecture
-     */
+
+
     private Object invokeWithReadLock(Method method, Object[] args) throws Throwable {
         try {
-            // 1. Acquérir le verrou en lecture
+            // acquérir le verrou en lecture
             jvnObject.jvnLockRead();
 
-            // 2. Récupérer l'objet à jour
+            // récupérer l'objet à jour
             realObject = jvnObject.jvnGetSharedObject();
 
-            // 3. Invoquer la méthode
+            // invoquer la méthode
             return method.invoke(realObject, args);
 
         } finally {
-            // 4. Libérer le verrou
+            //libérer verrou
             jvnObject.jvnUnLock();
         }
     }
 
-    /**
-     * Invoque une méthode avec un verrou en écriture
-     */
+
+
     private Object invokeWithWriteLock(Method method, Object[] args) throws Throwable {
         try {
-            // 1. Acquérir le verrou en écriture
+            // acquérir le verrou en écriture
             jvnObject.jvnLockWrite();
 
-            // 2. Récupérer l'objet à jour
+            // récupérer l'objet à jour
             realObject = jvnObject.jvnGetSharedObject();
 
-            // 3. Invoquer la méthode
+            // invoquer la méthode
             Object result = method.invoke(realObject, args);
 
-            // 4. Sauvegarder les modifications (important!)
+            // sauvegarder les modifications
             if (jvnObject instanceof JvnObjectImpl) {
                 ((JvnObjectImpl) jvnObject).setObject((Serializable) realObject);
             }
@@ -100,7 +91,7 @@ public class JvnProxy implements InvocationHandler {
             return result;
 
         } finally {
-            // 5. Libérer le verrou
+            // libérer verrou
             jvnObject.jvnUnLock();
         }
     }
