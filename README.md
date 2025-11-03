@@ -1,4 +1,4 @@
-JVN Project — Instructions de compilation et d’exécution
+JVN2 
 
 1) Compilation et lancement du coordinateur
 
@@ -10,6 +10,8 @@ java jvn.CoordMain
 
 cd src
 java irc.Irc
+
+<img width="681" height="501" alt="image" src="https://github.com/user-attachments/assets/d0335ca6-897a-4cfa-addb-ef676abd0201" />
 
 3) Tests de performance : Burst
 Lancer Coord
