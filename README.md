@@ -21,3 +21,5 @@ java irc.Irc
 cd src
 java irc.Irc
 ```
+<img width="392" height="290" alt="image" src="https://github.com/user-attachments/assets/d6549e1f-c542-4696-8053-d5e823b8eb39" />
+
