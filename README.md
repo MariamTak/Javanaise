@@ -6,7 +6,7 @@ cd src
 
 javac jvn/*.java irc/*.java
 
-java jvn.CoordMain
+java jvn.jvnCoordImpl
 ```
 
 **2) Open other Terminals and run Clients IRC**
