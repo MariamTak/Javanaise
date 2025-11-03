@@ -18,7 +18,7 @@ public class BurstClient extends UnicastRemoteObject implements IBurstClient {
     public static final long ITERATION_COUNT = 100_000_000L;
 
     public BurstClient(int id) throws Exception {
-        Registry registry = LocateRegistry.getRegistry();
+        Registry registry = LocateRegistry.getRegistry(); //connecte
         registry.rebind("BurstNode" + id, this);
         System.out.println("BurstNode " + id + " enregistre sur le registre RMI");
     }
@@ -32,11 +32,10 @@ public class BurstClient extends UnicastRemoteObject implements IBurstClient {
     }
 
     @Override
-    public void execute() throws JvnException, java.rmi.RemoteException {
+    public void execute() throws JvnException, InterruptedException, java.rmi.RemoteException {
         JvnServerImpl server = JvnServerImpl.jvnGetServer();
 
         // Recherche ou création du compteur partagé
-        assert server != null;
         JvnObject jvnObject = server.jvnLookupObject("sharedCounter");
         if (jvnObject == null) {
             jvnObject = server.jvnCreateObject(new SharedCounter());
@@ -61,7 +60,6 @@ public class BurstClient extends UnicastRemoteObject implements IBurstClient {
     @Override
     public long readValue() throws JvnException, java.rmi.RemoteException {
         JvnServerImpl server = JvnServerImpl.jvnGetServer();
-        assert server != null;
         JvnObject jvnObject = server.jvnLookupObject("sharedCounter");
 
         if (jvnObject == null) return 0;

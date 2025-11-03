@@ -5,8 +5,8 @@ import jvn.annotation.JvnWrite;
 
 public interface SentenceIntf {
     @JvnRead
-    public String read();
+    String read();
 
     @JvnWrite
-    public void write(String text);
+    void write(String text);
 }

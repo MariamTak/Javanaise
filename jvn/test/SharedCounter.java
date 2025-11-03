@@ -1,6 +1,5 @@
 package jvn.test;
 
-
 import java.io.Serializable;
 
 /**

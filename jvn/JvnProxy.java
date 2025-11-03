@@ -22,10 +22,10 @@ public class JvnProxy implements InvocationHandler {
     public static <T> T newInstance(JvnObject jvnObject, Class<T> objectInterface)
             throws JvnException {
 
-        Serializable sharedObject = jvnObject.jvnGetSharedObject();
+        Serializable sharedObject = jvnObject.jvnGetSharedObject(); //recupere obj
 
-        JvnProxy handler = new JvnProxy(jvnObject, sharedObject);
-
+        JvnProxy handler = new JvnProxy(jvnObject, sharedObject); //creer intercepteur
+//creer proxy dynamique
         return (T) Proxy.newProxyInstance(
                 objectInterface.getClassLoader(),
                 new Class<?>[] { objectInterface },
@@ -37,17 +37,17 @@ public class JvnProxy implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        // Vérifier si la méthode a l'annotation @JvnRead
+        // vvérifier si la méthode a l'annotation @JvnRead
         if (method.isAnnotationPresent(JvnRead.class)) {
             return invokeWithReadLock(method, args);
         }
 
-        // Vérifier si la méthode a l'annotation @JvnWrite
+        // vérifier si la méthode a l'annotation @JvnWrite
         if (method.isAnnotationPresent(JvnWrite.class)) {
             return invokeWithWriteLock(method, args);
         }
 
-        //  pas d'annotation, appel direct (pas de verrou)
+        //  appel direct (pas de verrou)
         return method.invoke(realObject, args);
     }
 
@@ -85,7 +85,7 @@ public class JvnProxy implements InvocationHandler {
 
             // sauvegarder les modifications
             if (jvnObject instanceof JvnObjectImpl) {
-                ((JvnObjectImpl) jvnObject).setObject((Serializable) realObject);
+                jvnObject.setObject((Serializable) realObject);
             }
 
             return result;

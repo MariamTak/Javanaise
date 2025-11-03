@@ -38,7 +38,7 @@ public class JvnServerImpl
 		super();
 		obj = new HashMap<>();
 try {
-jvnRemoteCoord = (JvnRemoteCoord)  Naming.lookup("rmi://localhost/JvnCoord");
+jvnRemoteCoord = (JvnRemoteCoord)  Naming.lookup("rmi://localhost/JvnCoord"); // cherche jvncoord dans rmi registry
 } catch (Exception e) {
 		throw new RuntimeException(e);
 	}
@@ -52,7 +52,7 @@ jvnRemoteCoord = (JvnRemoteCoord)  Naming.lookup("rmi://localhost/JvnCoord");
 	public static JvnServerImpl jvnGetServer() {
 		if (js == null){
 			try {
-				js = new JvnServerImpl();
+				js = new JvnServerImpl(); // instance unique
 			} catch (Exception e) {
 				return null;
 			}

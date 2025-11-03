@@ -24,15 +24,11 @@ public class JvnObjectImpl implements JvnObject {
         this.localServer = localServer;
     }
 
-    public JvnObjectImpl(int id, Serializable object) {
-        this.id = id;
-        this.state = STATE.NL;
-        this.object = object;
-    }
+
 
     @Override
     public synchronized void jvnLockRead() throws JvnException {
-        // Attendre si quelqu'un écrit
+        // Attendre si quelqu’un écrit (verrou d’écriture en cours)
         while (state == STATE.W) {
             try {
                 wait();
@@ -41,17 +37,28 @@ public class JvnObjectImpl implements JvnObject {
             }
         }
 
-        // Si cache d'écriture valide, peut lire localement
-        if (state == STATE.WC || state == STATE.RWC) {
-            state = STATE.RWC;
-            return;
-        }
+        switch (state) {
+            case R:
+            case RC:
+            case RWC:
+                // On a déjà un verrou de lecture local → rien à faire
+                return;
 
-        // ✅ TOUJOURS contacter le coordinateur pour RC, R et NL
-        // Pour s'assurer d'avoir la version la plus récente
-        object = localServer.jvnLockRead(id);
-        state = STATE.R;
+            case W:
+            case WC:
+                // Si on avait un verrou d’écriture (ou cache écriture),
+                // on garde la lecture en local sans contacter le coordinateur
+                state = STATE.RWC;
+                return;
+
+            case NL:
+                // Aucun verrou → demander un verrou de lecture au coordinateur
+                object = localServer.jvnLockRead(id);
+                state = STATE.R;
+                return;
+        }
     }
+
     @Override
     public synchronized void jvnLockWrite() throws JvnException {
         // Attendre si quelqu'un écrit

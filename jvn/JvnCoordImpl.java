@@ -27,11 +27,11 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
         return next_id++;
     }
 
-    public void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
+    public synchronized void jvnRegisterObject(String jon, JvnObject jo, JvnRemoteServer js)
             throws java.rmi.RemoteException, JvnException {
         int id = jo.jvnGetObjectId();
         name_id.put(jon, id);
-        states.put(id, jo.jvnGetSharedObject());
+        states.put(id, jo.jvnGetSharedObject()); //sauvegarder l etat
         readers.putIfAbsent(id, new HashSet<>());
         writers.put(id, null);
         locks.putIfAbsent(js, new ArrayList<>());
@@ -41,7 +41,7 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
             throws java.rmi.RemoteException, JvnException {
         Integer id = name_id.get(jon);
         if (id == null) return null;
-        Serializable obj = states.get(id);
+        Serializable obj = states.get(id);  //recupere l etat
         return new JvnObjectImpl(id, obj, null);
     }
 
@@ -50,19 +50,19 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 
         locks.putIfAbsent(js, new ArrayList<>());
         if (!locks.get(js).contains(joi)) {
-            locks.get(js).add(joi);
+            locks.get(js).add(joi); //serveur utilise cet obj
         }
-
+//gestion ecrivain
         JvnRemoteServer writer = writers.get(joi);
         if (writer != null && !writer.equals(js)) {
-            Serializable updatedObject = writer.jvnInvalidateWriterForReader(joi);
+            Serializable updatedObject = writer.jvnInvalidateWriterForReader(joi); // si writer existe, invalider verrou pour lecture
             if (updatedObject != null) {
                 states.put(joi, updatedObject);
             }
             writers.put(joi, null);
         }
 
-        // Ajouter le client à la liste des lecteurs
+        // ajouter serveur à la liste des lecteurs
         readers.putIfAbsent(joi, new HashSet<>());
         readers.get(joi).add(js);
 
@@ -74,9 +74,9 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
 
         locks.putIfAbsent(js, new ArrayList<>());
         if (!locks.get(js).contains(joi)) {
-            locks.get(js).add(joi);
+            locks.get(js).add(joi); //enregistre verrou
         }
-
+//gestion ecrivain
         JvnRemoteServer currentWriter = writers.get(joi);
         if (currentWriter != null && !currentWriter.equals(js)) {
             Serializable updatedObject = currentWriter.jvnInvalidateWriter(joi);
@@ -84,17 +84,17 @@ public class JvnCoordImpl extends UnicastRemoteObject implements JvnRemoteCoord 
                 states.put(joi, updatedObject);
             }
         }
+        //gestion lecteur
         Set<JvnRemoteServer> rds = readers.get(joi);
         if (rds != null) {
             for (JvnRemoteServer reader : new HashSet<>(rds)) {
-                if (!reader.equals(js)) {
+                if (!reader.equals(js)) { //sauf demandeur
                     try {
                         Serializable updatedObject = reader.jvnInvalidateReader(joi);
                         if (updatedObject != null) {
                             states.put(joi, updatedObject);
                         }
                     } catch (Exception e) {
-                        // Reader peut être déconnecté
                     }
                 }
             }
