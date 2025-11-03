@@ -1,11 +1,12 @@
-JVN2 
+# JVN2 — Proxy Approach avec test Burst
 
 1) Compilation et lancement du coordinateur
 
+```bash
 cd src
 javac jvn/*.java irc/*.java jvn/test/*.java
 java jvn.CoordMain
-
+```
 2) Lancer plusieurs instances du client IRC
 
 cd src
