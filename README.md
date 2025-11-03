@@ -1,14 +1,23 @@
-**1) compile java source files and start coordinator**
+**JVN1 — Object , Coordinator and Server Implementation**
 
+**In terminal 1 run Coordinator**
+```Bash
 cd src
 
 javac jvn/*.java irc/*.java
 
+java jvn.CoordMain
+```
 
-java jvn.JvnCoordImpl  
+**2) Open other Terminals and run Clients IRC**
 
-**2) in another terminal run IRC**
-
+**Terminal 1 :**
+```Bash
 cd src
-
 java irc.Irc
+```
+**Terminal 2 :**
+```Bash
+cd src
+java irc.Irc
+```
